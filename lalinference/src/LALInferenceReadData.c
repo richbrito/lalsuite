@@ -556,6 +556,7 @@ static void LALInferencePrintDataWithInjection(LALInferenceIFOData *IFOdata, Pro
     (--inj-numreldata FileName) Location of NR data file for the injection of NR waveforms (with NR_hdf5 in injection XML file).\n\
     (--0noise)                  Sets the noise realisation to be identically zero\n\
                                     (for the fake caches above only)\n\
+    (--windowRD)                  Sets window for the ringdown only analysis\n\
     \n"
 
 LALInferenceIFOData *LALInferenceReadData(ProcessParamsTable *commandLine)
@@ -800,10 +801,11 @@ LALInferenceIFOData *LALInferenceReadData(ProcessParamsTable *commandLine)
         XLALGPSSetREAL8(&segStart,segstartR8);
     }
 
-
     /* Read the PSD data */
     for(i=0;i<Nifo;i++) {
         memcpy(&(IFOdata[i].epoch),&segStart,sizeof(LIGOTimeGPS));
+        
+        
         /* Check to see if an interpolation file is specified */
         interpFlag=0;
         interp=NULL;
@@ -1155,6 +1157,57 @@ LALInferenceIFOData *LALInferenceReadData(ProcessParamsTable *commandLine)
                 XLALPrintError("Error reading segment data for %s at %i\n",IFOnames[i],segStart.gpsSeconds);
                 XLAL_ERROR_NULL(XLAL_EFUNC);
             }
+            
+            /*Windowed data for ringdown analysis*/
+            if((ppt=LALInferenceGetProcParamVal(commandLine,"--windowRD")))
+            {
+                if(LALInferenceGetProcParamVal(commandLine,"--fix-time") && LALInferenceGetProcParamVal(commandLine,"--fix-rightascension") && LALInferenceGetProcParamVal(commandLine,"--fix-declination"))
+                {
+                    
+                REAL8 timedelay;
+                REAL8 time;
+                LIGOTimeGPS GPSlal;
+                LIGOTimeGPS GPShift;
+                REAL8 ra;
+                REAL8 dec;
+                
+                time=atof(LALInferenceGetProcParamVal(commandLine,"--fix-time")->value);
+                ra=atof(LALInferenceGetProcParamVal(commandLine,"--fix-rightascension")->value);
+                dec=atof(LALInferenceGetProcParamVal(commandLine,"--fix-declination")->value);
+                
+                XLALGPSSetREAL8(&GPSlal, time);
+                timedelay = XLALTimeDelayFromEarthCenter(IFOdata[i].detector->location,ra,dec,&GPSlal);
+                
+                /*shift data to match with start of template*/
+                REAL8 timeshift=0.0;
+                REAL8 timediff=time+timedelay-XLALGPSGetREAL8(&(IFOdata[i].timeData->epoch));
+                timeshift=timediff-(REAL8) floor(timediff/(IFOdata[i].timeData->deltaT))*(IFOdata[i].timeData->deltaT);
+                
+                XLALGPSSetREAL8(&GPShift, timeshift);
+                XLALGPSAddGPS(&(IFOdata[i].timeData->epoch), &(GPShift));
+                
+                for (j = 0; j < IFOdata[i].timeData->data->length; j++)
+                {
+                    REAL8 t = XLALGPSGetREAL8(&(IFOdata[i].timeData->epoch)) + j * IFOdata[i].timeData->deltaT;
+                    if(t < time+timedelay)
+                    {
+                        IFOdata[i].timeData->data->data[j] = 0.0;
+                    }
+                    else
+                    {
+                        IFOdata[i].timeData->data->data[j] = IFOdata[i].timeData->data->data[j];
+                    }
+                    
+                }
+                }
+                else{
+                    XLALPrintError("ERROR: --windowRD only works with fixed geocentric time and sky position\n");
+                    exit(1);
+                }
+
+            }
+            /*end of windowed data for ringdown analysis*/
+            
             XLALResampleREAL8TimeSeries(IFOdata[i].timeData,1.0/SampleRate);
             if(!IFOdata[i].timeData) {XLALPrintError("Error reading segment data for %s\n",IFOnames[i]); XLAL_ERROR_NULL(XLAL_EFUNC);}
             IFOdata[i].freqData=(COMPLEX16FrequencySeries *)XLALCreateCOMPLEX16FrequencySeries("freqData",&(IFOdata[i].timeData->epoch),0.0,1.0/SegmentLength,&lalDimensionlessUnit,seglen/2+1);
@@ -1686,13 +1739,17 @@ void LALInferenceInjectInspiralSignal(LALInferenceIFOData *IFOdata, ProcessParam
         fprintf(stderr, "WARNING: waveform length = %u is longer than thisData->timeData->data->length = %d minus the window width = %d and the 2.0 seconds after tc (total of %d points available).\n", signalvecREAL8->data->length, thisData->timeData->data->length, (INT4)ceil((2.0*padding)/thisData->timeData->deltaT) , thisData->timeData->data->length-(INT4)ceil((2.0*padding+2.0)/thisData->timeData->deltaT));
         fprintf(stderr, "The waveform injected is %f seconds long. Consider increasing the %f seconds segment length (--seglen) to be greater than %f. (in %s, line %d)\n",signalvecREAL8->data->length * thisData->timeData->deltaT , thisData->timeData->data->length * thisData->timeData->deltaT, signalvecREAL8->data->length * thisData->timeData->deltaT + 2.0*padding + 2.0, __FILE__, __LINE__);
       }
-
+      
+     
       XLALSimAddInjectionREAL8TimeSeries(inj8Wave, signalvecREAL8, NULL);
+        
+      
 
       if ( hplus ) XLALDestroyREAL8TimeSeries(hplus);
       if ( hcross ) XLALDestroyREAL8TimeSeries(hcross);
 
     }
+        
     XLALDestroyREAL4TimeSeries(injectionBuffer);
     injF=(COMPLEX16FrequencySeries *)XLALCreateCOMPLEX16FrequencySeries("injF",
 										&thisData->timeData->epoch,
@@ -1704,9 +1761,62 @@ void LALInferenceInjectInspiralSignal(LALInferenceIFOData *IFOdata, ProcessParam
       XLALPrintError("Unable to allocate memory for injection buffer\n");
       XLAL_ERROR_VOID(XLAL_EFUNC);
     }
+        
+
+        
     /* Window the data */
     REAL4 WinNorm = sqrt(thisData->window->sumofsquares/thisData->window->data->length);
         for(j=0;j<inj8Wave->data->length;j++) inj8Wave->data->data[j]*=thisData->window->data->data[j]; /* /WinNorm; */ /* Window normalisation applied only in freq domain */
+        
+    /*Windowed data for ringdown analysis*/
+    if((ppt=LALInferenceGetProcParamVal(commandLine,"--windowRD")))
+    {
+        if(LALInferenceGetProcParamVal(commandLine,"--fix-time") && LALInferenceGetProcParamVal(commandLine,"--fix-rightascension") && LALInferenceGetProcParamVal(commandLine,"--fix-declination"))
+        {
+        
+        REAL8 timedelay;
+        REAL8 time;
+        LIGOTimeGPS GPSlal;
+        LIGOTimeGPS GPShift;
+        
+        REAL8 injtime=0.0;
+        injtime=(REAL8) injEvent->geocent_end_time.gpsSeconds + (REAL8) injEvent->geocent_end_time.gpsNanoSeconds*1.0e-9;
+        XLALGPSSetREAL8(&GPSlal, injtime);
+        
+        time=atof(LALInferenceGetProcParamVal(commandLine,"--fix-time")->value);
+        
+        timedelay = XLALTimeDelayFromEarthCenter(det.site->location,injEvent->longitude, injEvent->latitude, &GPSlal);
+        
+        /*shift data to match with start of template*/
+        REAL8 timeshift=0.0;
+        REAL8 timediff=time+timedelay-XLALGPSGetREAL8(&thisData->timeData->epoch);
+        timeshift=timediff-(REAL8) floor(timediff/(thisData->timeData->deltaT))*(thisData->timeData->deltaT);
+        
+        XLALGPSSetREAL8(&GPShift, timeshift);
+        XLALGPSAddGPS(&(thisData->timeData->epoch), &(GPShift));
+        
+        for (j = 0; j < inj8Wave->data->length; j++)
+        {
+            REAL8 t =XLALGPSGetREAL8(&thisData->timeData->epoch) + thisData->timeData->deltaT*j;
+            if(t < time+timedelay)
+            {
+                inj8Wave->data->data[j] = 0.0;
+            }
+            else
+            {
+                inj8Wave->data->data[j] = inj8Wave->data->data[j];
+            }
+            
+        }
+        }
+        else{
+            XLALPrintError("ERROR: --windowRD only works with fixed geocentric time and sky position\n");
+            exit(1);
+        }
+    }
+        
+    /*end of windowed data for ringdown analysis*/
+        
     XLALREAL8TimeFreqFFT(injF,inj8Wave,thisData->timeToFreqFFTPlan);
     if(thisData->oneSidedNoisePowerSpectrum){
       for(SNR=0.0,j=thisData->fLow/injF->deltaF;j<thisData->fHigh/injF->deltaF;j++){
