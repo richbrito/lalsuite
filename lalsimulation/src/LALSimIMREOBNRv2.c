@@ -43,7 +43,7 @@
 /**
  * The maximum number of modes available to us in this model
  */
-static const int EOBNRV2_NUM_MODES_MAX = 2; /*5;/*
+static const int EOBNRV2_NUM_MODES_MAX = 2; /*5;*/
 
 /**
  * The following declarations are so that the compiler quits. It appears that they are here because
@@ -863,7 +863,7 @@ XLALSimIMREOBNRv2Generator(
                                {2, 1},
                                {3, 3},
                                {4, 4},
-                               {5, 5}};/*
+                               {5, 5}};*/
 
    INT4 currentMode;
 
