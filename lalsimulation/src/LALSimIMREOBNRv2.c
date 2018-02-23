@@ -858,7 +858,7 @@ XLALSimIMREOBNRv2Generator(
 
    /* The list of available modes */
    const INT4 lmModes[2][2] = {{2, 2},
-                               {3, 3}};
+                               {2, 1}};
                                /*{{2, 2},
                                {2, 1},
                                {3, 3},
