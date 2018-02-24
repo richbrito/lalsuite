@@ -857,7 +857,7 @@ XLALSimIMREOBNRv2Generator(
    INT4 phaseCounter;
 
    /* The list of available modes */
-   const INT4 lmModes[3][2] = {{2, 2},
+   const INT4 lmModes[5][2] = {{2, 2},
                                {2, 1},
                                {3, 3},
                                {4, 4},
