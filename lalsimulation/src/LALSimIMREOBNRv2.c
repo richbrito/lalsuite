@@ -43,7 +43,7 @@
 /**
  * The maximum number of modes available to us in this model
  */
-static const int EOBNRV2_NUM_MODES_MAX = 2; /*5;*/
+static const int EOBNRV2_NUM_MODES_MAX = 3; /*5;*/
 
 /**
  * The following declarations are so that the compiler quits. It appears that they are here because
@@ -857,7 +857,7 @@ XLALSimIMREOBNRv2Generator(
    INT4 phaseCounter;
 
    /* The list of available modes */
-   const INT4 lmModes[2][2] = {{2, 2}, {3, 3}};
+   const INT4 lmModes[3][2] = {{2, 2}, {2, 1}, {3, 3}};
                             /*{{2, 2},
                                {2, 1},
                                {3, 3},
