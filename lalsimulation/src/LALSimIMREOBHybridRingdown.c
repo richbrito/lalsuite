@@ -251,11 +251,8 @@ static INT4 XLALSimIMREOBHybridRingdownWave(REAL8Vector * rdwave1,
         }
     }
 
-    for (i = 0; i < 16; ++i) {
-        for (j = 0; j < 16; ++j) {
-            printf("%.12e ", modeamps->data[i]);
-        }
-        printf("\n");
+    for (i = 0; i < nmodes; ++i) {
+        printf("%.12e  %.12e \n", modeamps->data[i], modeamps->data[i + nmodes]);
     }
   
     XLALDestroyREAL8Vector(modeamps);
