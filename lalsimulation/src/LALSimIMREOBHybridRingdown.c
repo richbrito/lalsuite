@@ -250,10 +250,15 @@ static INT4 XLALSimIMREOBHybridRingdownWave(REAL8Vector * rdwave1,
                 + modeamps->data[i + nmodes] * cos(tj * creal(modefreqs->data[i])));
         }
     }
-
-    for (i = 0; i < nmodes; ++i) {
-        printf("%.12e  %.12e \n", modeamps->data[i], modeamps->data[i + nmodes]);
+    
+   FILE * amplitudes;
+   amplitudes = fopen ("amps.txt", "w+");
+ 
+   for (i = 0; i < nmodes; ++i) {
+        fprintf("%.12e  %.12e \n", modeamps->data[i], modeamps->data[i + nmodes]);
     }
+    
+    fclose(amplitudes);
   
     XLALDestroyREAL8Vector(modeamps);
     return errcode;
